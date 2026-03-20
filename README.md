@@ -428,6 +428,8 @@ GSD handles it for you:
 | `PLAN.md` | Atomic task with XML structure, verification steps |
 | `SUMMARY.md` | What happened, what changed, committed to history |
 | `todos/` | Captured ideas and tasks for later work |
+| `threads/` | Persistent context threads for cross-session work |
+| `seeds/` | Forward-looking ideas that surface at the right milestone |
 
 Size limits based on where Claude's quality degrades. Stay under, get consistent excellence.
 
@@ -560,11 +562,14 @@ You're never locked in. The system adapts.
 | `/gsd:pr-branch` | Create clean PR branch filtering `.planning/` commits |
 | `/gsd:audit-uat` | Audit verification debt — find phases missing UAT |
 
-### Backlog
+### Backlog & Threads
 
 | Command | What it does |
 |---------|--------------|
-| `/gsd:plant-seed <idea>` | Park ideas in backlog parking lot for future milestones |
+| `/gsd:plant-seed <idea>` | Capture forward-looking ideas with trigger conditions — surfaces at the right milestone |
+| `/gsd:add-backlog <desc>` | Add idea to backlog parking lot (999.x numbering, outside active sequence) |
+| `/gsd:review-backlog` | Review and promote backlog items to active milestone or remove stale entries |
+| `/gsd:thread [name]` | Persistent context threads — lightweight cross-session knowledge for work spanning multiple sessions |
 
 ### Utilities
 
@@ -661,6 +666,20 @@ At milestone completion, GSD offers squash merge (recommended) or merge with his
 ---
 
 ## Security
+
+### Built-in Security Hardening
+
+GSD includes defense-in-depth security since v1.27:
+
+- **Path traversal prevention** — All user-supplied file paths (`--text-file`, `--prd`) are validated to resolve within the project directory
+- **Prompt injection detection** — Centralized `security.cjs` module scans for injection patterns in user-supplied text before it enters planning artifacts
+- **PreToolUse prompt guard hook** — `gsd-prompt-guard` scans writes to `.planning/` for embedded injection vectors (advisory, not blocking)
+- **Safe JSON parsing** — Malformed `--fields` arguments are caught before they corrupt state
+- **Shell argument validation** — User text is sanitized before shell interpolation
+- **CI-ready injection scanner** — `prompt-injection-scan.test.cjs` scans all agent/workflow/command files for embedded injection vectors
+
+> [!NOTE]
+> Because GSD generates markdown files that become LLM system prompts, any user-controlled text flowing into planning artifacts is a potential indirect prompt injection vector. These protections are designed to catch such vectors at multiple layers.
 
 ### Protecting Sensitive Files
 

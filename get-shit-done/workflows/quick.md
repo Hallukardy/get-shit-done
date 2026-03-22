@@ -536,6 +536,7 @@ Execute quick task ${quick_id}.
 ",
   subagent_type="gsd-executor",
   model="{executor_model}",
+  isolation="worktree",
   description="Execute: ${DESCRIPTION}"
 )
 ```

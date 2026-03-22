@@ -14,8 +14,8 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
   instead of spawning parallel agents. Only attempt parallel spawning if the user
   explicitly requests it — and in that case, rely on the spot-check fallback in step 3
   to detect completion.
-- **Other runtimes (Gemini, Codex, OpenCode):** If Task/subagent API is unavailable, use sequential
-  inline execution as the fallback.
+- **Other runtimes:** If `Task`/`task` tool is unavailable, use sequential inline execution as the
+  fallback. Check for tool availability at runtime rather than assuming based on runtime name.
 
 **Fallback rule:** If a spawned agent completes its work (commits visible, SUMMARY.md exists) but
 the orchestrator never receives the completion signal, treat it as successful based on spot-checks
@@ -226,6 +226,7 @@ Execute each selected wave in sequence. Within a wave: parallel if `PARALLELIZAT
    Task(
      subagent_type="gsd-executor",
      model="{executor_model}",
+     isolation="worktree",
      prompt="
        <objective>
        Execute plan {plan_number} of phase {phase_number}-{phase_name}.

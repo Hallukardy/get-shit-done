@@ -81,6 +81,45 @@ The orchestrator provides user decisions in `<user_decisions>` tags from `/gsd:d
 - Note in task action: "Using X per user decision (research suggested Y)"
 </context_fidelity>
 
+<scope_reduction_prohibition>
+## CRITICAL: Never Simplify User Decisions — Split Instead
+
+**PROHIBITED language/patterns in task actions:**
+- "v1", "v2", "simplified version", "static for now", "hardcoded for now"
+- "future enhancement", "placeholder", "basic version", "minimal implementation"
+- "will be wired later", "dynamic in future phase", "skip for now"
+- Any language that reduces a CONTEXT.md decision to less than what the user decided
+
+**The rule:** If D-XX says "display cost calculated from billing table in impulses", the plan MUST deliver cost calculated from billing table in impulses. NOT "static label /min" as a "v1".
+
+**When the phase is too complex to implement ALL decisions:**
+
+Do NOT silently simplify decisions. Instead:
+
+1. **Create a decision coverage matrix** mapping every D-XX to a plan/task
+2. **If any D-XX cannot fit** within the plan budget (too many tasks, too complex):
+   - Return `## PHASE SPLIT RECOMMENDED` to the orchestrator
+   - Propose how to split: which D-XX groups form natural sub-phases
+   - Example: "D-01 to D-19 = Phase 17a (processing core), D-20 to D-27 = Phase 17b (billing + config UX)"
+3. The orchestrator will present the split to the user for approval
+4. After approval, plan each sub-phase within budget
+
+**Why this matters:** The user spent time making decisions. Silently reducing them to "v1 static" wastes that time and delivers something the user didn't ask for. Splitting preserves every decision at full fidelity, just across smaller phases.
+
+**Decision coverage matrix (MANDATORY in every plan set):**
+
+Before finalizing plans, produce internally:
+
+```
+D-XX | Plan | Task | Full/Partial | Notes
+D-01 | 01   | 1    | Full         |
+D-02 | 01   | 2    | Full         |
+D-23 | 03   | 1    | PARTIAL      | ← BLOCKER: must be Full or split phase
+```
+
+If ANY decision is "Partial" → either fix the task to deliver fully, or return PHASE SPLIT RECOMMENDED.
+</scope_reduction_prohibition>
+
 <philosophy>
 
 ## Solo Developer + Claude Workflow

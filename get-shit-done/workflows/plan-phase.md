@@ -560,8 +560,41 @@ Task(
 ## 9. Handle Planner Return
 
 - **`## PLANNING COMPLETE`:** Display plan count. If `--skip-verify` or `plan_checker_enabled` is false (from init): skip to step 13. Otherwise: step 10.
+- **`## PHASE SPLIT RECOMMENDED`:** The planner determined the phase is too complex to implement all user decisions without simplifying them. Handle in step 9b.
 - **`## CHECKPOINT REACHED`:** Present to user, get response, spawn continuation (step 12)
 - **`## PLANNING INCONCLUSIVE`:** Show attempts, offer: Add context / Retry / Manual
+
+## 9b. Handle Phase Split Recommendation
+
+When the planner returns `## PHASE SPLIT RECOMMENDED`, it means the phase has too many decisions to implement at full fidelity within the plan budget. The planner proposes groupings.
+
+**Extract from planner return:**
+- Proposed sub-phases (e.g., "17a: processing core (D-01 to D-19)", "17b: billing + config UX (D-20 to D-27)")
+- Which D-XX decisions go in each sub-phase
+- Why the split is necessary (decision count, complexity estimate)
+
+**Present to user:**
+```
+## Phase {X} is too complex for full-fidelity implementation
+
+The planner found {N} decisions that cannot all be implemented without
+simplifying some. Instead of reducing your decisions, we recommend splitting:
+
+**Option 1: Split into sub-phases**
+- Phase {X}a: {name} — {D-XX to D-YY} ({N} decisions)
+- Phase {X}b: {name} — {D-XX to D-YY} ({M} decisions)
+
+**Option 2: Proceed anyway** (planner will attempt all, quality may degrade)
+
+**Option 3: Prioritize** — you choose which decisions to implement now,
+rest become a follow-up phase
+```
+
+Use AskUserQuestion with these 3 options.
+
+**If "Split":** Use `/gsd:insert-phase` to create the sub-phases, then replan each.
+**If "Proceed":** Return to planner with instruction to attempt all decisions at full fidelity, accepting more plans/tasks.
+**If "Prioritize":** Use AskUserQuestion (multiSelect) to let user pick which D-XX are "now" vs "later". Create CONTEXT.md for each sub-phase with the selected decisions.
 
 ## 10. Spawn gsd-plan-checker Agent
 

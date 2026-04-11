@@ -26,6 +26,9 @@ const VALID_CONFIG_KEYS = new Set([
   'workflow.code_review',
   'workflow.code_review_depth',
   'workflow.code_review_command',
+  'workflow.plan_bounce',
+  'workflow.plan_bounce_script',
+  'workflow.plan_bounce_passes',
   'git.branching_strategy', 'git.base_branch', 'git.phase_branch_template', 'git.milestone_branch_template', 'git.quick_branch_template',
   'planning.commit_docs', 'planning.search_gitignored',
   'workflow.subagent_timeout',
@@ -38,6 +41,7 @@ const VALID_CONFIG_KEYS = new Set([
   'manager.flags.discuss', 'manager.flags.plan', 'manager.flags.execute',
   'response_language',
   'intel.enabled',
+  'claude_md_path',
 ]);
 
 /**
@@ -157,6 +161,9 @@ function buildNewProjectConfig(userChoices) {
       code_review: true,
       code_review_depth: 'standard',
       code_review_command: null,
+      plan_bounce: false,
+      plan_bounce_script: null,
+      plan_bounce_passes: 2,
     },
     hooks: {
       context_warnings: true,
@@ -164,6 +171,7 @@ function buildNewProjectConfig(userChoices) {
     project_code: null,
     phase_naming: 'sequential',
     agent_skills: {},
+    claude_md_path: './CLAUDE.md',
   };
 
   // Three-level deep merge: hardcoded <- userDefaults <- choices

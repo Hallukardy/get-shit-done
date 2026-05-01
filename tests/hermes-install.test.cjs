@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { createTempDir, cleanup } = require('./helpers.cjs');
+const { createTempDir, cleanup, parseFrontmatter } = require('./helpers.cjs');
+const pkg = require('../package.json');
 
 const {
   getDirName,
@@ -108,6 +109,58 @@ describe('Hermes Agent local install/uninstall', () => {
 
     assert.ok(!fs.existsSync(path.join(targetDir, 'skills', 'gsd-help')), 'Hermes skill directory removed');
     assert.ok(!fs.existsSync(path.join(targetDir, 'get-shit-done')), 'get-shit-done removed');
+  });
+
+  test('installed SKILL.md frontmatter conforms to Hermes spec', () => {
+    install(false, 'hermes');
+    const targetDir = path.join(tmpDir, '.hermes');
+    const skillsDir = path.join(targetDir, 'skills');
+    const skillDirs = fs.readdirSync(skillsDir, { withFileTypes: true })
+      .filter(e => e.isDirectory() && e.name.startsWith('gsd-'))
+      .map(e => e.name);
+
+    assert.ok(skillDirs.length > 0, 'at least one gsd-* skill installed');
+
+    // Parse every SKILL.md and assert structural shape required by Hermes.
+    for (const dir of skillDirs) {
+      const content = fs.readFileSync(path.join(skillsDir, dir, 'SKILL.md'), 'utf8');
+      const fm = parseFrontmatter(content);
+      assert.strictEqual(fm.name, dir, `${dir}/SKILL.md name matches dir`);
+      assert.ok(typeof fm.description === 'string' && fm.description.length > 0,
+        `${dir}/SKILL.md has non-empty description`);
+      assert.strictEqual(fm.version, pkg.version,
+        `${dir}/SKILL.md declares version ${pkg.version} (got ${JSON.stringify(fm.version)})`);
+    }
+
+    uninstall(false, 'hermes');
+  });
+
+  test('replaces CLAUDE.md references with .hermes.md (Hermes-discovered project context name)', () => {
+    install(false, 'hermes');
+    const targetDir = path.join(tmpDir, '.hermes');
+    const skillsDir = path.join(targetDir, 'skills');
+
+    // Walk all skill files and confirm no `CLAUDE.md` token leaks; if any
+    // skill body referenced project context, it should now point at
+    // `.hermes.md` (per https://hermes-agent.nousresearch.com/docs).
+    let referencedHermesMd = false;
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) { walk(full); continue; }
+        if (!entry.name.endsWith('.md')) continue;
+        const content = fs.readFileSync(full, 'utf8');
+        assert.ok(!/\bCLAUDE\.md\b/.test(content),
+          `${path.relative(targetDir, full)} still references CLAUDE.md`);
+        if (/\.hermes\.md/.test(content)) referencedHermesMd = true;
+      }
+    };
+    walk(skillsDir);
+    // Sanity: at least one skill in the GSD set references the project
+    // context filename, so the substitution actually exercises.
+    assert.ok(referencedHermesMd, 'at least one skill references .hermes.md after substitution');
+
+    uninstall(false, 'hermes');
   });
 });
 

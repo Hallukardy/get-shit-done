@@ -1193,7 +1193,7 @@ function skillFrontmatterName(skillDirName) {
  * Emits `name: gsd-<cmd>` (hyphen) so Skill(skill="gsd-<cmd>") calls and
  * tab autocomplete use the canonical command namespace.
  */
-function convertClaudeCommandToClaudeSkill(content, skillName) {
+function convertClaudeCommandToClaudeSkill(content, skillName, runtime = null) {
   const { frontmatter, body } = extractFrontmatterAndBody(content);
   if (!frontmatter) return content;
 
@@ -1213,6 +1213,10 @@ function convertClaudeCommandToClaudeSkill(content, skillName) {
   // Reconstruct frontmatter in Claude skill format
   const frontmatterName = skillFrontmatterName(skillName);
   let fm = `---\nname: ${frontmatterName}\ndescription: ${yamlQuote(description)}\n`;
+  // Hermes' SKILL.md spec lists `version` as a required frontmatter field.
+  // Track GSD's package version so Hermes' skill_view() reports a stable
+  // identifier per install.
+  if (runtime === 'hermes') fm += `version: ${yamlQuote(pkg.version)}\n`;
   if (argumentHint) fm += `argument-hint: ${yamlQuote(argumentHint)}\n`;
   if (agent) fm += `agent: ${agent}\n`;
   if (toolsBlock) fm += toolsBlock;
@@ -5366,12 +5370,12 @@ function copyCommandsAsClaudeSkills(srcDir, skillsDir, prefix, pathPrefix, runti
       }
       // Hermes Agent reuses Claude skill format; rewrite branding + paths.
       if (runtime === 'hermes') {
-        content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
+        content = content.replace(/CLAUDE\.md/g, '.hermes.md');
         content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
         content = content.replace(/\.claude\//g, '.hermes/');
       }
       content = processAttribution(content, getCommitAttribution(runtime));
-      content = convertClaudeCommandToClaudeSkill(content, skillName);
+      content = convertClaudeCommandToClaudeSkill(content, skillName, runtime);
 
       fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content);
     }
@@ -5588,7 +5592,7 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
         content = content.replace(/\.claude\//g, '.qwen/');
         fs.writeFileSync(destPath, content);
       } else if (isHermes) {
-        content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
+        content = content.replace(/CLAUDE\.md/g, '.hermes.md');
         content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
         content = content.replace(/\.claude\//g, '.hermes/');
         fs.writeFileSync(destPath, content);
@@ -5647,7 +5651,7 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
       let jsContent = fs.readFileSync(srcPath, 'utf8');
       jsContent = jsContent.replace(/\.claude\/skills\//g, '.hermes/skills/');
       jsContent = jsContent.replace(/\.claude\//g, '.hermes/');
-      jsContent = jsContent.replace(/CLAUDE\.md/g, 'HERMES.md');
+      jsContent = jsContent.replace(/CLAUDE\.md/g, '.hermes.md');
       jsContent = jsContent.replace(/\bClaude Code\b/g, 'Hermes Agent');
       fs.writeFileSync(destPath, jsContent);
     } else {
@@ -7264,7 +7268,7 @@ function install(isGlobal, runtime = 'claude') {
           content = content.replace(/\bClaude Code\b/g, 'Qwen Code');
           content = content.replace(/\.claude\//g, '.qwen/');
         } else if (isHermes) {
-          content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
+          content = content.replace(/CLAUDE\.md/g, '.hermes.md');
           content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
           content = content.replace(/\.claude\//g, '.hermes/');
         }
@@ -7332,7 +7336,7 @@ function install(isGlobal, runtime = 'claude') {
               content = content.replace(/\bClaude Code\b/g, 'Qwen Code');
             }
             if (isHermes) {
-              content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
+              content = content.replace(/CLAUDE\.md/g, '.hermes.md');
               content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
             }
             content = content.replace(/\{\{GSD_VERSION\}\}/g, pkg.version);
@@ -8072,7 +8076,7 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   if (runtime === 'trae') command = '/gsd-new-project';
   if (runtime === 'cline') command = '/gsd-new-project';
   if (runtime === 'qwen') command = '/gsd-new-project';
-  if (runtime === 'hermes') command = 'gsd-new-project (mention the skill name, e.g. "use gsd-new-project")';
+  if (runtime === 'hermes') command = '/gsd-new-project';
   console.log(`
   ${green}Done!${reset} Open a blank directory in ${program} and run ${cyan}${command}${reset}.
 

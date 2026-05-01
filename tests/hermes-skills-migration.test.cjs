@@ -19,6 +19,8 @@ const {
   convertClaudeCommandToClaudeSkill,
   copyCommandsAsClaudeSkills,
 } = require('../bin/install.js');
+const { parseFrontmatter } = require('./helpers.cjs');
+const pkg = require('../package.json');
 
 // ─── convertClaudeCommandToClaudeSkill (used by Hermes via copyCommandsAsClaudeSkills) ──
 
@@ -152,11 +154,15 @@ describe('Hermes Agent: copyCommandsAsClaudeSkills', () => {
     const skillPath = path.join(skillsDir, 'gsd-quick', 'SKILL.md');
     assert.ok(fs.existsSync(skillPath), 'gsd-quick/SKILL.md exists');
 
-    // Verify content
+    // Verify content (structural — parse frontmatter, don't substring-grep)
     const content = fs.readFileSync(skillPath, 'utf8');
-    assert.ok(content.includes('name: gsd-quick'), 'frontmatter name uses hyphen form (#2808)');
-    assert.ok(content.includes('description:'), 'description present');
-    assert.ok(content.includes('allowed-tools:'), 'allowed-tools preserved');
+    const fm = parseFrontmatter(content);
+    assert.strictEqual(fm.name, 'gsd-quick', 'frontmatter name uses hyphen form (#2808)');
+    assert.ok(fm.description && fm.description.length > 0, 'description present and non-empty');
+    assert.strictEqual(fm.version, pkg.version,
+      `Hermes SKILL.md must declare version (got ${JSON.stringify(fm.version)})`);
+    assert.ok(/^allowed-tools:\s*\n(?:\s+-\s+\S+\n?)+/m.test(content),
+      'allowed-tools rendered as YAML block list');
     assert.ok(content.includes('<objective>'), 'body content preserved');
   });
 
@@ -251,7 +257,7 @@ describe('Hermes Agent: copyCommandsAsClaudeSkills', () => {
 // ─── Integration: SKILL.md format validation ────────────────────────────────
 
 describe('Hermes Agent: SKILL.md format validation', () => {
-  test('SKILL.md frontmatter is valid YAML structure', () => {
+  test('SKILL.md frontmatter parses with required Hermes fields', () => {
     const input = [
       '---',
       'name: gsd:review',
@@ -267,21 +273,32 @@ describe('Hermes Agent: SKILL.md format validation', () => {
       '<objective>Review code</objective>',
     ].join('\n');
 
-    const result = convertClaudeCommandToClaudeSkill(input, 'gsd-review');
+    // Pass runtime='hermes' so the version field is injected per Hermes spec.
+    const result = convertClaudeCommandToClaudeSkill(input, 'gsd-review', 'hermes');
+    const fm = parseFrontmatter(result);
 
-    // Parse the frontmatter
-    const fmMatch = result.match(/^---\n([\s\S]*?)\n---/);
-    assert.ok(fmMatch, 'has frontmatter block');
+    assert.strictEqual(fm.name, 'gsd-review', 'name uses hyphen form');
+    assert.ok(fm.description && fm.description.length > 0, 'description non-empty');
+    assert.strictEqual(fm.version, pkg.version, 'version matches package.json');
+    assert.strictEqual(fm.agent, 'gsd-code-reviewer', 'agent preserved');
+    assert.strictEqual(fm['argument-hint'], '[PR number or branch]', 'argument-hint preserved and unquoted');
+    assert.ok(/^allowed-tools:\s*\n(?:\s+-\s+\S+\n?)+/m.test(result),
+      'allowed-tools rendered as YAML block list');
+  });
 
-    const fmLines = fmMatch[1].split('\n');
-    const hasName = fmLines.some(l => l.startsWith('name: gsd-review'));
-    const hasDesc = fmLines.some(l => l.startsWith('description:'));
-    const hasAgent = fmLines.some(l => l.startsWith('agent:'));
-    const hasTools = fmLines.some(l => l.startsWith('allowed-tools:'));
+  test('omits version field when runtime is not hermes (parity with non-Hermes skill consumers)', () => {
+    const input = [
+      '---',
+      'name: gsd:plan',
+      'description: Plan a phase',
+      '---',
+      '',
+      'Body.',
+    ].join('\n');
 
-    assert.ok(hasName, 'name field correct');
-    assert.ok(hasDesc, 'description field present');
-    assert.ok(hasAgent, 'agent field present');
-    assert.ok(hasTools, 'allowed-tools field present');
+    const result = convertClaudeCommandToClaudeSkill(input, 'gsd-plan');
+    const fm = parseFrontmatter(result);
+    assert.strictEqual(fm.version, undefined, 'no version key for non-hermes skills');
+    assert.strictEqual(fm.name, 'gsd-plan');
   });
 });

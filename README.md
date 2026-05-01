@@ -108,8 +108,7 @@ The installer prompts you to choose:
 2. **Location** — Global (all projects) or local (current project only)
 
 Verify with:
-- Claude Code / Gemini / Copilot / Antigravity / Qwen Code: `/gsd-help`
-- Hermes Agent: ask the agent to use `gsd-help` (skills are natural-language-triggered)
+- Claude Code / Gemini / Copilot / Antigravity / Qwen Code / Hermes Agent: `/gsd-help`
 - OpenCode / Kilo / Augment / Trae / CodeBuddy: `/gsd-help`
 - Codex: `$gsd-help`
 - Cline: GSD installs via `.clinerules` — verify by checking `.clinerules` exists

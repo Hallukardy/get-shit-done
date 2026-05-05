@@ -80,10 +80,13 @@ export function formatPick(data: unknown, pickField?: string): unknown {
 
 export function formatSuccess(data: unknown, format: DispatchSuccessFormat, pickField?: string): string {
   if (format === 'text' && typeof data === 'string') {
+    if (pickField) {
+      throw new Error('--pick is not supported for text output');
+    }
     return data.endsWith('\n') ? data : `${data}\n`;
   }
   const output = formatPick(data, pickField);
-  return `${JSON.stringify(output, null, 2)}\n`;
+  return `${JSON.stringify(output === undefined ? null : output, null, 2)}\n`;
 }
 
 export function validateQueryDispatchInput(queryArgv: string[]): DispatchInputValidationResult {

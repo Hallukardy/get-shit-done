@@ -35,6 +35,7 @@ $ARGUMENTS
 If `--from-gsd2` is in $ARGUMENTS:
 Run: `node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" from-gsd2`
 Pass `--path <dir>` if provided. Present the migration result to the user.
+Stop here (do not run the standard import workflow).
 
-Execute the import workflow end-to-end.
+Otherwise, execute the import workflow end-to-end.
 </process>

@@ -1,6 +1,7 @@
 import { GSDError, exitCodeFor } from './errors.js';
 import { GSDToolsError } from './gsd-tools-error.js';
 import { errorMessage, toFailureSignal } from './query-failure-classification.js';
+import type { QueryNativeErrorFactory, QueryToolsErrorFactory } from './query-tools-error-seam.js';
 
 export function timeoutToolsError(message: string, command: string, args: string[], stderr = '', timeoutMs?: number): GSDToolsError {
   return GSDToolsError.timeout(message, command, args, stderr, timeoutMs);
@@ -28,4 +29,22 @@ export function toToolsErrorFromUnknown(command: string, args: string[], err: un
     return timeoutToolsError(msg, command, args, '', signal.timeoutMs);
   }
   return failureToolsError(msg, command, args, 1, '', err instanceof Error ? err : undefined);
+}
+
+export function createQueryToolsErrorFactory(): QueryToolsErrorFactory {
+  return {
+    createTimeoutError: (message, command, args, stderr, timeoutMs) =>
+      timeoutToolsError(message, command, args, stderr, timeoutMs),
+    createFailureError: (message, command, args, exitCode, stderr) =>
+      failureToolsError(message, command, args, exitCode, stderr),
+  };
+}
+
+export function createQueryNativeErrorFactory(defaultTimeoutMs: number): QueryNativeErrorFactory {
+  return {
+    createNativeTimeoutError: (message, command, args) =>
+      timeoutToolsError(message, command, args, '', defaultTimeoutMs),
+    createNativeFailureError: (message, command, args, cause) =>
+      failureToolsError(message, command, args, 1, '', cause),
+  };
 }

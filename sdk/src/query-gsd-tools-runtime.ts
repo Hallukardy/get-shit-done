@@ -7,8 +7,7 @@ import { QuerySubprocessAdapter } from './query-subprocess-adapter.js';
 import { QueryNativeDirectAdapter } from './query-native-direct-adapter.js';
 import { QueryNativeHotpathAdapter } from './query-native-hotpath-adapter.js';
 import { formatQueryRawOutput } from './query-raw-output-projection.js';
-import { failureToolsError, timeoutToolsError } from './query-tools-error-factory.js';
-import type { QueryNativeErrorFactory, QueryToolsErrorFactory } from './query-tools-error-seam.js';
+import { createQueryNativeErrorFactory, createQueryToolsErrorFactory } from './query-tools-error-factory.js';
 
 export interface GSDToolsRuntime {
   registry: ReturnType<typeof createRegistry>;
@@ -29,12 +28,7 @@ export function createGSDToolsRuntime(opts: {
 }): GSDToolsRuntime {
   const registry = createRegistry(opts.eventStream, opts.sessionId);
 
-  const queryToolsErrorFactory: QueryToolsErrorFactory = {
-    createTimeoutError: (message, command, args, stderr, timeoutMs) =>
-      timeoutToolsError(message, command, args, stderr, timeoutMs),
-    createFailureError: (message, command, args, exitCode, stderr) =>
-      failureToolsError(message, command, args, exitCode, stderr),
-  };
+  const queryToolsErrorFactory = createQueryToolsErrorFactory();
 
   const subprocessAdapter = new QuerySubprocessAdapter({
     projectDir: opts.projectDir,
@@ -44,12 +38,7 @@ export function createGSDToolsRuntime(opts: {
     ...queryToolsErrorFactory,
   });
 
-  const nativeErrorFactory: QueryNativeErrorFactory = {
-    createNativeTimeoutError: (message, command, args) =>
-      timeoutToolsError(message, command, args, '', opts.timeoutMs),
-    createNativeFailureError: (message, command, args, cause) =>
-      failureToolsError(message, command, args, 1, '', cause),
-  };
+  const nativeErrorFactory = createQueryNativeErrorFactory(opts.timeoutMs);
 
   const nativeDirectAdapter = new QueryNativeDirectAdapter({
     timeoutMs: opts.timeoutMs,

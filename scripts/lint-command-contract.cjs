@@ -63,13 +63,13 @@ function check(filePath) {
 
   // 4+5. execution_context @-refs resolve + no trailing prose
   const refs = extractExecutionContextRefs(content);
-  for (const { ref, normalized, hasTrailingProse } of refs) {
+  for (const { token, normalized, trailingProse } of refs) {
     const absPath = path.join(GSD_ROOT, normalized);
     if (!fs.existsSync(absPath)) {
       violations.push(`execution_context: @-ref "${normalized}" does not exist on disk`);
     }
-    if (hasTrailingProse) {
-      violations.push(`execution_context: @-ref "${ref}" has trailing prose on the same line`);
+    if (trailingProse) {
+      violations.push(`execution_context: @-ref "${token}" has trailing prose on the same line`);
     }
   }
 

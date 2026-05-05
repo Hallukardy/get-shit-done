@@ -7,7 +7,7 @@ import { QuerySubprocessAdapter } from './query-subprocess-adapter.js';
 import { QueryNativeDirectAdapter } from './query-native-direct-adapter.js';
 import { QueryNativeHotpathAdapter } from './query-native-hotpath-adapter.js';
 import { formatQueryRawOutput } from './query-raw-output-projection.js';
-import { GSDToolsError } from './gsd-tools-error.js';
+import { failureClassification, GSDToolsError, timeoutClassification } from './gsd-tools-error.js';
 
 export interface GSDToolsRuntime {
   registry: ReturnType<typeof createRegistry>;
@@ -35,7 +35,7 @@ export function createGSDToolsRuntime(opts: {
     workstream: opts.workstream,
     createToolsError: (message, command, args, exitCode, stderr, classification) =>
       new GSDToolsError(message, command, args, exitCode, stderr, {
-        classification: classification ?? { kind: 'failure' },
+        classification: classification ?? failureClassification(),
       }),
   });
 
@@ -43,7 +43,7 @@ export function createGSDToolsRuntime(opts: {
     timeoutMs: opts.timeoutMs,
     dispatch: (registryCommand, registryArgs) => registry.dispatch(registryCommand, registryArgs, opts.projectDir),
     createTimeoutError: (message, command, args) =>
-      new GSDToolsError(message, command, args, null, '', { classification: { kind: 'timeout', timeoutMs: opts.timeoutMs } }),
+      new GSDToolsError(message, command, args, null, '', { classification: timeoutClassification(opts.timeoutMs) }),
   });
 
   const transport = new GSDTransport(registry, {

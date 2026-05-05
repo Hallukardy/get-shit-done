@@ -3,6 +3,14 @@ export interface GSDToolsErrorClassification {
   timeoutMs?: number;
 }
 
+export function timeoutClassification(timeoutMs?: number): GSDToolsErrorClassification {
+  return timeoutMs === undefined ? { kind: 'timeout' } : { kind: 'timeout', timeoutMs };
+}
+
+export function failureClassification(): GSDToolsErrorClassification {
+  return { kind: 'failure' };
+}
+
 export class GSDToolsError extends Error {
   constructor(
     message: string,

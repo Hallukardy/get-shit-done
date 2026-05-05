@@ -1,5 +1,5 @@
 import { GSDError, exitCodeFor } from './errors.js';
-import { GSDToolsError } from './gsd-tools-error.js';
+import { failureClassification, GSDToolsError, timeoutClassification } from './gsd-tools-error.js';
 import { errorMessage, toFailureSignal } from './query-failure-classification.js';
 
 /**
@@ -20,8 +20,8 @@ export function toGSDToolsError(command: string, args: string[], err: unknown): 
   const msg = errorMessage(err);
   const signal = toFailureSignal(err);
   const classification = signal.kind === 'timeout'
-    ? { kind: 'timeout' as const, timeoutMs: signal.timeoutMs }
-    : { kind: 'failure' as const };
+    ? timeoutClassification(signal.timeoutMs)
+    : failureClassification();
 
   return new GSDToolsError(
     msg,

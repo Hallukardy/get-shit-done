@@ -15,8 +15,9 @@ describe('bug #3050: update backup skips unreadable files non-fatally', () => {
     const hasTryCatch = /try\s*\{[\s\S]*copyFileSync\([\s\S]*\}[\s\S]*catch\s*\(err\)/.test(content);
     assert.ok(hasTryCatch, 'backup copy loop must catch per-file copy errors');
 
+    const hasNonFatalSkipMessage = /Skipped \(non-fatal\):/.test(content);
     assert.ok(
-      content.includes('Skipped (non-fatal):'),
+      hasNonFatalSkipMessage,
       'workflow must log a non-fatal skip message for unreadable custom files',
     );
   });

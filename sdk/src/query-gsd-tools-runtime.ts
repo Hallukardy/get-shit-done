@@ -23,6 +23,8 @@ export function createGSDToolsRuntime(opts: {
   shouldUseNativeQuery: () => boolean;
   execJsonFallback: (legacyCommand: string, legacyArgs: string[]) => Promise<unknown>;
   execRawFallback: (legacyCommand: string, legacyArgs: string[]) => Promise<string>;
+  strictSdk?: boolean;
+  allowFallbackToSubprocess?: boolean;
 }): GSDToolsRuntime {
   const registry = createRegistry(opts.eventStream, opts.sessionId);
 
@@ -69,6 +71,10 @@ export function createGSDToolsRuntime(opts: {
     executionPolicy,
     nativeHotpathAdapter,
     opts.shouldUseNativeQuery,
+    {
+      strictSdk: opts.strictSdk,
+      allowFallbackToSubprocess: opts.allowFallbackToSubprocess,
+    },
   );
 
   return { bridge };

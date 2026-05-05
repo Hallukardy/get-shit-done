@@ -53,6 +53,10 @@ export class GSDTools {
      * Set false in tests that substitute a mock `gsdToolsPath` script.
      */
     preferNativeQuery?: boolean;
+    /** When true, fail if a command has no native registry adapter. */
+    strictSdk?: boolean;
+    /** Explicit subprocess bridge policy. Default false for SDK-native mode. */
+    allowFallbackToSubprocess?: boolean;
   }) {
     this.projectDir = opts.projectDir;
     this.gsdToolsPath =
@@ -71,6 +75,8 @@ export class GSDTools {
       shouldUseNativeQuery: () => this.shouldUseNativeQuery(),
       execJsonFallback: (legacyCommand, legacyArgs) => this.exec(legacyCommand, legacyArgs),
       execRawFallback: (legacyCommand, legacyArgs) => this.execRaw(legacyCommand, legacyArgs),
+      strictSdk: opts.strictSdk,
+      allowFallbackToSubprocess: opts.allowFallbackToSubprocess ?? false,
     });
 
     this.bridge = runtime.bridge;

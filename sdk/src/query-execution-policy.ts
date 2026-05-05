@@ -11,6 +11,7 @@ export interface QueryExecutionRequest {
   projectDir: string;
   workstream?: string;
   preferNativeQuery: boolean;
+  allowFallbackToSubprocess?: boolean;
 }
 
 /**
@@ -35,7 +36,8 @@ export class QueryExecutionPolicy {
       },
       {
         preferNative: request.preferNativeQuery && policy.preferNative,
-        allowFallbackToSubprocess: policy.allowFallbackToSubprocess,
+        allowFallbackToSubprocess:
+          request.allowFallbackToSubprocess ?? policy.allowFallbackToSubprocess,
       },
     );
   }

@@ -485,7 +485,7 @@ If everything passes, you move on. If something's broken, you don't manually deb
 Or let GSD figure out the next step automatically:
 
 ```
-/gsd-next                    # Auto-detect and run next step
+/gsd-progress --next                    # Auto-detect and run next step
 ```
 
 Loop **discuss → plan → execute → verify → ship** until milestone complete.
@@ -630,7 +630,7 @@ You're never locked in. The system adapts.
 | `/gsd-execute-phase <N>` | Execute all plans in parallel waves, verify when complete |
 | `/gsd-verify-work [N]` | Manual user acceptance testing ¹ |
 | `/gsd-ship [N] [--draft]` | Create PR from verified phase work with auto-generated body |
-| `/gsd-next` | Automatically advance to the next logical workflow step |
+| `/gsd-progress --next` | Automatically advance to the next logical workflow step |
 | `/gsd-fast <text>` | Inline trivial tasks — skips planning entirely, executes immediately |
 | `/gsd-audit-milestone` | Verify milestone achieved its definition of done |
 | `/gsd-complete-milestone` | Archive milestone, tag release |
@@ -676,7 +676,7 @@ You're never locked in. The system adapts.
 | Command | What it does |
 |---------|--------------|
 | `/gsd-progress` | Where am I? What's next? |
-| `/gsd-next` | Auto-detect state and run the next step |
+| `/gsd-progress --next` | Auto-detect state and run the next step |
 | `/gsd-help` | Show all commands and usage guide |
 | `/gsd-update` | Update GSD with changelog preview |
 | `/gsd-join-discord` | Join the GSD Discord community |

@@ -199,7 +199,7 @@ function cmdMilestoneComplete(cwd, version, options, raw) {
     atomicWriteFileSync(milestonesPath, normalizeMd(`# Milestones\n\n${milestoneEntry}`));
   }
 
-  // Update STATE.md — use shared helpers that handle both **bold:** and plain Field: formats
+  // Update STATE.md — keep frontmatter/body semantically aligned after closure
   if (fs.existsSync(statePath)) {
     let stateContent = fs.readFileSync(statePath, 'utf-8');
 
@@ -207,6 +207,31 @@ function cmdMilestoneComplete(cwd, version, options, raw) {
     stateContent = stateReplaceFieldWithFallback(stateContent, 'Last Activity', 'Last activity', today);
     stateContent = stateReplaceFieldWithFallback(stateContent, 'Last Activity Description', null,
       `${version} milestone completed and archived`);
+
+    // Reset Current Position narrative so resume/progress flows do not keep
+    // pointing at closed-phase execution instructions.
+    const positionPattern = /(##\s*Current Position\s*\n)([\s\S]*?)(?=\n##|$)/i;
+    const closedPositionBody =
+      `\nPhase: Milestone ${version} complete\n` +
+      `Plan: —\n` +
+      `Status: Awaiting next milestone\n` +
+      `Last activity: ${today} — Milestone ${version} completed and archived\n\n`;
+    if (positionPattern.test(stateContent)) {
+      stateContent = stateContent.replace(positionPattern, (_m, header) => `${header}${closedPositionBody}`);
+    } else {
+      stateContent = `${stateContent.trimEnd()}\n\n## Current Position\n${closedPositionBody}`;
+    }
+
+    // Normalize operator-next-step tails that can become stale after close.
+    const operatorPattern = /(##\s*Operator Next Steps\s*\n)([\s\S]*?)(?=\n##|$)/i;
+    if (operatorPattern.test(stateContent)) {
+      stateContent = stateContent.replace(
+        operatorPattern,
+        `$1\n- Start the next milestone with /gsd-new-milestone\n\n`,
+      );
+    } else {
+      stateContent = `${stateContent.trimEnd()}\n\n## Operator Next Steps\n\n- Start the next milestone with /gsd-new-milestone\n`;
+    }
 
     writeStateMd(statePath, stateContent, cwd);
   }

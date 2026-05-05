@@ -7,11 +7,10 @@ import { QueryNativeDirectAdapter } from './query-native-direct-adapter.js';
 import { QueryNativeHotpathAdapter } from './query-native-hotpath-adapter.js';
 import { formatQueryRawOutput } from './query-raw-output-projection.js';
 import { createQueryNativeErrorFactory, createQueryToolsErrorFactory } from './query-tools-error-factory.js';
+import { QueryRuntimeBridge } from './query-runtime-bridge.js';
 
 export interface GSDToolsRuntime {
-  registry: ReturnType<typeof createRegistry>;
-  executionPolicy: QueryExecutionPolicy;
-  nativeHotpathAdapter: QueryNativeHotpathAdapter;
+  bridge: QueryRuntimeBridge;
 }
 
 export function createGSDToolsRuntime(opts: {
@@ -65,5 +64,12 @@ export function createGSDToolsRuntime(opts: {
     opts.execRawFallback,
   );
 
-  return { registry, executionPolicy, nativeHotpathAdapter };
+  const bridge = new QueryRuntimeBridge(
+    registry,
+    executionPolicy,
+    nativeHotpathAdapter,
+    opts.shouldUseNativeQuery,
+  );
+
+  return { bridge };
 }

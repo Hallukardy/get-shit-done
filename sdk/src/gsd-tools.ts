@@ -15,13 +15,12 @@ import type { InitNewProjectInfo, PhaseOpInfo, PhasePlanIndex, RoadmapAnalysis }
 import type { GSDEventStream } from './event-stream.js';
 import { toToolsErrorFromUnknown } from './query-tools-error-factory.js';
 import { GSDToolsError } from './gsd-tools-error.js';
-import { resolveQueryCommand, type QueryCommandResolution } from './query/query-command-resolution-strategy.js';
-import { QueryExecutionPolicy } from './query-execution-policy.js';
-import { QueryNativeHotpathAdapter } from './query-native-hotpath-adapter.js';
+import type { QueryCommandResolution } from './query/query-command-resolution-strategy.js';
 import { resolveGsdToolsPath } from './query-gsd-tools-path.js';
 import { createGSDToolsRuntime } from './query-gsd-tools-runtime.js';
 import { QueryCommandExecutor } from './query-command-executor.js';
 import { QueryHotpathMethods } from './query-hotpath-methods.js';
+import { QueryRuntimeBridge } from './query-runtime-bridge.js';
 
 export { GSDToolsError } from './gsd-tools-error.js';
 
@@ -35,10 +34,8 @@ export class GSDTools {
   private readonly gsdToolsPath: string;
   private readonly timeoutMs: number;
   private readonly workstream?: string;
-  private readonly registry: ReturnType<typeof createGSDToolsRuntime>['registry'];
+  private readonly bridge: QueryRuntimeBridge;
   private readonly preferNativeQuery: boolean;
-  private readonly executionPolicy: QueryExecutionPolicy;
-  private readonly nativeHotpathAdapter: QueryNativeHotpathAdapter;
   private readonly commandExecutor: QueryCommandExecutor;
   private readonly hotpathMethods: QueryHotpathMethods;
 
@@ -76,12 +73,10 @@ export class GSDTools {
       execRawFallback: (legacyCommand, legacyArgs) => this.execRaw(legacyCommand, legacyArgs),
     });
 
-    this.registry = runtime.registry;
-    this.executionPolicy = runtime.executionPolicy;
-    this.nativeHotpathAdapter = runtime.nativeHotpathAdapter;
+    this.bridge = runtime.bridge;
     this.commandExecutor = new QueryCommandExecutor({
       nativeMatch: (command, args) => this.nativeMatch(command, args),
-      execute: async (input) => this.executionPolicy.execute({
+      execute: async (input) => this.bridge.execute({
         legacyCommand: input.legacyCommand,
         legacyArgs: input.legacyArgs,
         registryCommand: input.registryCommand,
@@ -89,7 +84,6 @@ export class GSDTools {
         mode: input.mode,
         projectDir: this.projectDir,
         workstream: this.workstream,
-        preferNativeQuery: this.shouldUseNativeQuery(),
       }),
     });
 
@@ -104,7 +98,7 @@ export class GSDTools {
   }
 
   private nativeMatch(command: string, args: string[]): QueryCommandResolution | null {
-    return resolveQueryCommand(command, args, this.registry);
+    return this.bridge.resolve(command, args);
   }
 
   private async dispatchNativeHotpath(
@@ -115,7 +109,7 @@ export class GSDTools {
     mode: 'json' | 'raw',
   ): Promise<unknown> {
     return this.executeWithToolsError(legacyCommand, legacyArgs, () =>
-      this.nativeHotpathAdapter.dispatch(
+      this.bridge.dispatchHotpath(
         legacyCommand,
         legacyArgs,
         registryCommand,

@@ -315,8 +315,10 @@ describe('bug #3094: progress routing does not reference removed /gsd-list-phase
 
   test('progress.md pre-planning guidance uses /gsd-discuss-phase instead', () => {
     const content = read('get-shit-done/workflows/progress.md');
-    assert.ok(
-      /\/gsd-discuss-phase/.test(content),
+    const tokens = extractSlashCommandTokens(content);
+    assert.equal(
+      tokens.has('/gsd-discuss-phase'),
+      true,
       'progress.md should route pre-planning assumption checks via /gsd-discuss-phase'
     );
   });

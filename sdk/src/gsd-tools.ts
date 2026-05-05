@@ -20,7 +20,7 @@ import { resolveGsdToolsPath } from './query-gsd-tools-path.js';
 import { createGSDToolsRuntime } from './query-gsd-tools-runtime.js';
 import { QueryCommandExecutor } from './query-command-executor.js';
 import { QueryHotpathMethods } from './query-hotpath-methods.js';
-import { QueryRuntimeBridge } from './query-runtime-bridge.js';
+import { QueryRuntimeBridge, type RuntimeBridgeOptions } from './query-runtime-bridge.js';
 
 export { GSDToolsError } from './gsd-tools-error.js';
 
@@ -57,6 +57,8 @@ export class GSDTools {
     strictSdk?: boolean;
     /** Explicit subprocess bridge policy. Default false for SDK-native mode. */
     allowFallbackToSubprocess?: boolean;
+    /** Structured runtime bridge dispatch observability callback. */
+    onDispatchEvent?: RuntimeBridgeOptions['onDispatchEvent'];
   }) {
     this.projectDir = opts.projectDir;
     this.gsdToolsPath =
@@ -77,6 +79,7 @@ export class GSDTools {
       execRawFallback: (legacyCommand, legacyArgs) => this.execRaw(legacyCommand, legacyArgs),
       strictSdk: opts.strictSdk,
       allowFallbackToSubprocess: opts.allowFallbackToSubprocess ?? false,
+      onDispatchEvent: opts.onDispatchEvent,
     });
 
     this.bridge = runtime.bridge;

@@ -1,5 +1,5 @@
 import { resolveTransportPolicy } from './gsd-transport-policy.js';
-import type { GSDTransport } from './gsd-transport.js';
+import type { GSDTransport, TransportDecision } from './gsd-transport.js';
 import type { TransportMode } from './gsd-transport-policy.js';
 
 export interface QueryExecutionRequest {
@@ -12,6 +12,7 @@ export interface QueryExecutionRequest {
   workstream?: string;
   preferNativeQuery: boolean;
   allowFallbackToSubprocess?: boolean;
+  onTransportDecision?: (decision: TransportDecision) => void;
 }
 
 /**
@@ -39,6 +40,7 @@ export class QueryExecutionPolicy {
         allowFallbackToSubprocess:
           request.allowFallbackToSubprocess ?? policy.allowFallbackToSubprocess,
       },
+      request.onTransportDecision,
     );
   }
 }

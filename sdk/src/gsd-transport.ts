@@ -25,20 +25,34 @@ export interface TransportPolicyLike {
   allowFallbackToSubprocess: boolean;
 }
 
+export interface TransportDecision {
+  dispatchMode: 'native' | 'subprocess';
+  reason?: 'workstream_forced' | 'native_not_preferred' | 'native_unregistered' | 'native_failure_fallback';
+}
+
 export class GSDTransport {
   constructor(
     private readonly registry: QueryRegistry,
     private readonly adapters: TransportAdapters,
   ) {}
 
-  async run(request: TransportRequest, policy: TransportPolicyLike): Promise<unknown> {
-    if (this.shouldUseNative(request, policy)) {
+  async run(
+    request: TransportRequest,
+    policy: TransportPolicyLike,
+    onDecision?: (decision: TransportDecision) => void,
+  ): Promise<unknown> {
+    const useNative = this.shouldUseNative(request, policy);
+    if (useNative) {
       try {
         const native = await this.adapters.dispatchNative(request);
+        onDecision?.({ dispatchMode: 'native' });
         return this.projectNativeOutput(request, native.data);
       } catch (error) {
         if (this.shouldRethrowNativeError(error, policy)) throw error;
+        onDecision?.({ dispatchMode: 'subprocess', reason: 'native_failure_fallback' });
       }
+    } else {
+      onDecision?.({ dispatchMode: 'subprocess', reason: this.subprocessReason(request, policy) });
     }
 
     return this.dispatchSubprocess(request);
@@ -47,6 +61,13 @@ export class GSDTransport {
   private shouldUseNative(request: TransportRequest, policy: TransportPolicyLike): boolean {
     const forceSubprocess = Boolean(request.workstream);
     return !forceSubprocess && policy.preferNative && this.registry.has(request.registryCommand);
+  }
+
+  private subprocessReason(request: TransportRequest, policy: TransportPolicyLike): TransportDecision['reason'] {
+    if (request.workstream) return 'workstream_forced';
+    if (!policy.preferNative) return 'native_not_preferred';
+    if (!this.registry.has(request.registryCommand)) return 'native_unregistered';
+    return 'native_not_preferred';
   }
 
   private shouldRethrowNativeError(error: unknown, policy: TransportPolicyLike): boolean {

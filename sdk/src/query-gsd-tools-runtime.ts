@@ -7,7 +7,7 @@ import { QueryNativeDirectAdapter } from './query-native-direct-adapter.js';
 import { QueryNativeHotpathAdapter } from './query-native-hotpath-adapter.js';
 import { formatQueryRawOutput } from './query-raw-output-projection.js';
 import { createQueryNativeErrorFactory, createQueryToolsErrorFactory } from './query-tools-error-factory.js';
-import { QueryRuntimeBridge } from './query-runtime-bridge.js';
+import { QueryRuntimeBridge, type RuntimeBridgeOptions } from './query-runtime-bridge.js';
 
 export interface GSDToolsRuntime {
   bridge: QueryRuntimeBridge;
@@ -25,6 +25,7 @@ export function createGSDToolsRuntime(opts: {
   execRawFallback: (legacyCommand: string, legacyArgs: string[]) => Promise<string>;
   strictSdk?: boolean;
   allowFallbackToSubprocess?: boolean;
+  onDispatchEvent?: RuntimeBridgeOptions['onDispatchEvent'];
 }): GSDToolsRuntime {
   const registry = createRegistry(opts.eventStream, opts.sessionId);
 
@@ -74,6 +75,7 @@ export function createGSDToolsRuntime(opts: {
     {
       strictSdk: opts.strictSdk,
       allowFallbackToSubprocess: opts.allowFallbackToSubprocess,
+      onDispatchEvent: opts.onDispatchEvent,
     },
   );
 

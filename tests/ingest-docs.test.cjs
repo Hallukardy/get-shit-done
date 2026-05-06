@@ -60,9 +60,9 @@ describe('ingest-docs command frontmatter', () => {
     assert.ok(m[1].includes('--manifest'), 'argument-hint should mention --manifest');
     assert.ok(m[1].includes('--resolve'), 'argument-hint should mention --resolve');
   });
-  test('allowed-tools include AskUserQuestion and Task', () => {
+  test('allowed-tools include AskUserQuestion and Agent', () => {
     assert.ok(content.includes('AskUserQuestion'), 'command needs AskUserQuestion for gates');
-    assert.ok(content.includes('- Task'), 'command needs Task for agent spawns');
+    assert.ok(content.includes('- Agent'), 'command needs Agent for agent spawns');
   });
 });
 

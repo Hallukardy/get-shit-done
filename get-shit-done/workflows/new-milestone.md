@@ -340,7 +340,7 @@ Use template: ~/.claude/get-shit-done/templates/research-project/{FILE}
 
 After all 4 complete, spawn synthesizer:
 
-```
+```text
 Agent(prompt="
 Synthesize research outputs into SUMMARY.md.
 

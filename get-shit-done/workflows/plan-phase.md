@@ -866,9 +866,9 @@ Every task MUST include these fields — they are NOT optional:
 </quality_gate>
 ```
 
-**If `CHUNKED_MODE` is `false` (default):** Spawn the planner as a single long-lived Task:
+**If `CHUNKED_MODE` is `false` (default):** Spawn the planner as a single long-lived Agent:
 
-```
+```text
 Agent(
   prompt=filled_prompt,
   subagent_type="gsd-planner",
@@ -885,9 +885,9 @@ Agent(
 
 **Skip if `CHUNKED_MODE` is `false`.**
 
-Chunked mode splits the single long-lived planner Task into a short outline Task followed by
-N short per-plan Tasks. Each Task is bounded to ~3–5 min; each plan is committed individually
-for crash resilience. If any Task hangs and the terminal is force-killed, rerunning
+Chunked mode splits the single long-lived planner Agent run into a short outline Agent run followed by
+N short per-plan Agent runs. Each run is bounded to ~3–5 min; each plan is committed individually
+for crash resilience. If any run hangs and the terminal is force-killed, rerunning
 `/gsd-plan-phase {N} --chunked` resumes from the last successfully committed plan.
 
 **Intended for new or in-progress chunked runs.** To recover plans already written by a prior

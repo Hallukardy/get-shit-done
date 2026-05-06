@@ -480,7 +480,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
    creation before the next begins (the round-trip latency of each tool call provides
    natural spacing), while all agents still **run in parallel** once created.
 
-   ```
+   ```text
    # CORRECT: dispatch one Agent() per message, each with run_in_background: true
    # → worktrees created sequentially, agents execute in parallel
    #
@@ -488,7 +488,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
    # → simultaneous git worktree add → .git/config.lock contention → failures
    ```
 
-   ```
+   ```text
    Agent(
      subagent_type="gsd-executor",
      description="Execute plan {plan_number} of phase {phase_number}",

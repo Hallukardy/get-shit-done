@@ -920,7 +920,7 @@ Use template: ~/.claude/get-shit-done/templates/research-project/PITFALLS.md
 
 After all 4 agents complete, spawn synthesizer to create SUMMARY.md:
 
-```
+```text
 Agent(prompt="
 <task>
 Synthesize research outputs into SUMMARY.md.

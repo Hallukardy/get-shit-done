@@ -188,7 +188,7 @@ echo "Fix scope: ${FIX_SCOPE}"
 
 Use Agent() to spawn agent:
 
-```
+```text
 Agent(subagent_type="gsd-code-fixer", prompt="
 <files_to_read>
 ${REVIEW_PATH}

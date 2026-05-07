@@ -145,7 +145,7 @@ Use Agent tool with `subagent_type="gsd-codebase-mapper"`, `model="{mapper_model
 
 **Agent 1: Tech Focus**
 
-```
+```text
 Agent(
   subagent_type="gsd-codebase-mapper",
   model="{mapper_model}",
@@ -171,7 +171,7 @@ ${AGENT_SKILLS_MAPPER}"
 
 **Agent 2: Architecture Focus**
 
-```
+```text
 Agent(
   subagent_type="gsd-codebase-mapper",
   model="{mapper_model}",
@@ -197,7 +197,7 @@ ${AGENT_SKILLS_MAPPER}"
 
 **Agent 3: Quality Focus**
 
-```
+```text
 Agent(
   subagent_type="gsd-codebase-mapper",
   model="{mapper_model}",

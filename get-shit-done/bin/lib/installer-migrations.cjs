@@ -3,6 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const {
+  validateInstallerMigrationActions,
+  validateInstallerMigrationRecord,
+} = require('./installer-migration-authoring.cjs');
 
 const MANIFEST_NAME = 'gsd-file-manifest.json';
 const INSTALL_STATE_NAME = 'gsd-install-state.json';
@@ -175,19 +179,6 @@ function migrationMatchesContext(migration, { runtime, scope }) {
   return true;
 }
 
-function validateMigrationRecord(record, source) {
-  if (!record || typeof record !== 'object') {
-    throw new Error(`migration record must export an object: ${source}`);
-  }
-  if (typeof record.id !== 'string' || record.id.trim() === '') {
-    throw new Error(`migration record must include a non-empty id: ${source}`);
-  }
-  if (typeof record.plan !== 'function') {
-    throw new Error(`migration record must include a plan function: ${source}`);
-  }
-  return record;
-}
-
 function discoverInstallerMigrations({ migrationsDir }) {
   if (!migrationsDir || !fs.existsSync(migrationsDir)) return [];
   return fs.readdirSync(migrationsDir, { withFileTypes: true })
@@ -199,7 +190,7 @@ function discoverInstallerMigrations({ migrationsDir }) {
       delete require.cache[require.resolve(source)];
       const exported = require(source);
       const records = Array.isArray(exported) ? exported : [exported];
-      return records.map((record) => validateMigrationRecord(record, source));
+      return records.map((record) => validateInstallerMigrationRecord(record, source));
     });
 }
 
@@ -305,8 +296,11 @@ function planInstallerMigrations({
 
   const manifest = readInstallManifest(configDir);
   const state = readInstallState(configDir);
-  const scopedMigrations = migrations.filter((migration) =>
-    migration && migrationMatchesContext(migration, { runtime, scope })
+  const validatedMigrations = migrations.map((migration) =>
+    validateInstallerMigrationRecord(migration)
+  );
+  const scopedMigrations = validatedMigrations.filter((migration) =>
+    migrationMatchesContext(migration, { runtime, scope })
   );
   const applied = appliedMigrationEntries(state);
   assertAppliedMigrationChecksums(applied, scopedMigrations);
@@ -323,12 +317,6 @@ function planInstallerMigrations({
   };
 
   for (const migration of pending) {
-    if (typeof migration.id !== 'string' || migration.id.trim() === '') {
-      throw new Error('migration id must be a non-empty string');
-    }
-    if (typeof migration.plan !== 'function') {
-      throw new Error(`migration ${migration.id} must provide a plan function`);
-    }
     const plannedActions = migration.plan({
       configDir,
       runtime,
@@ -340,9 +328,7 @@ function planInstallerMigrations({
       classifyArtifact: classify,
       readJson: (relPath) => readJson(configDir, relPath),
     });
-    if (!Array.isArray(plannedActions)) {
-      throw new Error(`migration ${migration.id} plan must return an array`);
-    }
+    validateInstallerMigrationActions(plannedActions, migration);
     const checksum = migrationChecksum(migration);
     for (const rawAction of plannedActions) {
       const relPath = normalizeRelPath(rawAction.relPath);

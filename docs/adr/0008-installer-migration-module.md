@@ -48,3 +48,12 @@ snapshot before migration work proceeds.
 The first implementation should extract manifest/user-owned helpers, add install-state persistence, add migration planning, and port one existing orphan cleanup into the migration runner. It should not rewrite every runtime installer branch in the first pass.
 
 The detailed module contract lives in `docs/installer-migrations.md`.
+
+## Amendment (2026-05-11): Authoring guard enforcement
+
+The Installer Migration Authoring Guard Module validates migration records and
+planned actions before planning can proceed. Records must declare title,
+description, introduction version, explicit install scopes, destructive status,
+and a plan function. Destructive or config-rewrite actions must include
+ownership evidence, and runtime config rewrites must cite the runtime
+configuration contract registry.

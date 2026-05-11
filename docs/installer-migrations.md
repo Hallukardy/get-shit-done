@@ -135,6 +135,7 @@ Required fields:
 module.exports = {
   id: '2026-05-11-runtime-layout-example',
   title: 'Move legacy commands into runtime skills',
+  description: 'Move legacy runtime command files into the generated skill layout.',
   introducedIn: '1.50.0',
   runtimes: ['claude', 'codex', 'gemini'],
   scopes: ['global', 'local'],
@@ -144,6 +145,12 @@ module.exports = {
   }
 };
 ```
+
+The Installer Migration Authoring Guard Module rejects records that omit `id`,
+`title`, `description`, `introducedIn`, `scopes`, `destructive`, or `plan`.
+`runtimes` remains optional only for migrations intentionally shared by every
+runtime, but scope must always be explicit so an author cannot accidentally
+broaden local/global behavior.
 
 The `plan(ctx)` function receives an install context with runtime, scope,
 target directory, previous manifest, install state, package manifest, and
@@ -168,6 +175,10 @@ backup, rollback, and reporting.
 Remove a path only when it is known to be GSD-managed and unchanged from the
 previous manifest, or when the migration provides a purpose-built detector for
 an old GSD-owned shape.
+
+Authoring guardrail: every `remove-managed` action must include
+`ownershipEvidence` explaining the manifest entry, generated marker, or
+purpose-built detector that proves GSD ownership.
 
 Use for retired hooks, old generated agents, deprecated command files, and
 stale runtime-specific generated artifacts.
@@ -202,6 +213,10 @@ the disk write, journal entry, rollback snapshot, and runtime/scope filtering.
 Use this for legacy JSON config cleanup such as Codex `hooks.json`, where GSD
 can prove ownership of individual generated hook commands but not the whole
 file.
+
+Authoring guardrail: every `rewrite-json` action must include
+`ownershipEvidence`, and the migration record must include `runtimeContract`
+citing `docs/installer-migrations.md#runtime-configuration-contract-registry`.
 
 ### preserve-user
 

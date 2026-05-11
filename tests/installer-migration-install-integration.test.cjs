@@ -17,11 +17,29 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const installModule = require('../bin/install.js');
+const pkg = require('../package.json');
 const { install } = installModule;
 const { createTempDir, cleanup } = require('./helpers.cjs');
 
 const installScript = path.join(__dirname, '..', 'bin', 'install.js');
 const SUPPORTED_RUNTIMES = installModule.allRuntimes;
+const RUNTIME_INSTALL_CONTRACTS = {
+  claude: { surface: 'flat-skills', settings: true, packageJson: true },
+  antigravity: { surface: 'flat-skills', settings: true, packageJson: true },
+  augment: { surface: 'flat-skills', settings: true, packageJson: true },
+  cline: { surface: 'clinerules', settings: false, packageJson: false },
+  codebuddy: { surface: 'flat-skills', settings: true, packageJson: true },
+  codex: { surface: 'flat-skills', settings: false, packageJson: false, codexConfig: true },
+  copilot: { surface: 'flat-skills', settings: false, packageJson: false, copilotInstructions: true },
+  cursor: { surface: 'flat-skills', settings: false, packageJson: false },
+  gemini: { surface: 'commands-gsd', settings: true, packageJson: true },
+  hermes: { surface: 'hermes-skills', settings: true, packageJson: true },
+  kilo: { surface: 'flat-command', settings: false, packageJson: true },
+  opencode: { surface: 'flat-command', settings: true, packageJson: true },
+  qwen: { surface: 'flat-skills', settings: true, packageJson: true },
+  trae: { surface: 'flat-skills', settings: false, packageJson: false },
+  windsurf: { surface: 'flat-skills', settings: false, packageJson: false },
+};
 
 function sha256(content) {
   return crypto.createHash('sha256').update(content).digest('hex');
@@ -118,18 +136,127 @@ function stripAnsi(value) {
   return value.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-function runInstallerCli(runtime, targetDir) {
+function runInstallerCli(runtime, targetDir, options = {}) {
+  const { minimal = true } = options;
   const env = { ...process.env };
   delete env.GSD_TEST_MODE;
+  env.HOME = path.join(path.dirname(targetDir), 'home');
+  env.USERPROFILE = env.HOME;
 
   return spawnSync(
     process.execPath,
-    [installScript, `--${runtime}`, '--global', '--config-dir', targetDir, '--minimal', '--no-sdk'],
+    [
+      installScript,
+      `--${runtime}`,
+      '--global',
+      '--config-dir',
+      targetDir,
+      ...(minimal ? ['--minimal'] : []),
+      '--no-sdk',
+    ],
     {
       encoding: 'utf8',
       env,
     }
   );
+}
+
+function listDirNames(root, relPath) {
+  const dir = path.join(root, relPath);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).map((entry) => entry.name);
+}
+
+function assertHasGsdDirectory(root, relPath) {
+  assert.ok(
+    listDirNames(root, relPath).some((name) => name.startsWith('gsd-')),
+    `${relPath} should contain generated GSD entries`
+  );
+}
+
+function assertFreshInstallContract(runtime, targetDir) {
+  const contract = RUNTIME_INSTALL_CONTRACTS[runtime];
+  assert.ok(contract, `missing runtime install contract for ${runtime}`);
+
+  assert.equal(
+    fs.readFileSync(path.join(targetDir, 'get-shit-done', 'VERSION'), 'utf8'),
+    pkg.version,
+    `${runtime} should install the package VERSION`
+  );
+  assert.ok(
+    fs.existsSync(path.join(targetDir, 'get-shit-done', 'bin', 'gsd-tools.cjs')),
+    `${runtime} should install the GSD tool payload`
+  );
+  assert.ok(
+    fs.existsSync(path.join(targetDir, 'gsd-file-manifest.json')),
+    `${runtime} should write the install manifest`
+  );
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(targetDir, 'gsd-file-manifest.json'), 'utf8'));
+  assert.equal(manifest.version, pkg.version, `${runtime} manifest should record the package version`);
+  assert.equal(manifest.mode, 'full', `${runtime} manifest should record a full install`);
+  assert.ok(
+    manifest.files['get-shit-done/VERSION'],
+    `${runtime} manifest should track the installed VERSION file`
+  );
+
+  if (contract.surface === 'flat-skills') {
+    assertHasGsdDirectory(targetDir, 'skills');
+  } else if (contract.surface === 'hermes-skills') {
+    assertHasGsdDirectory(targetDir, path.join('skills', 'gsd'));
+    assert.ok(
+      fs.existsSync(path.join(targetDir, 'skills', 'gsd', 'DESCRIPTION.md')),
+      'Hermes should install the nested GSD category description'
+    );
+  } else if (contract.surface === 'flat-command') {
+    assert.ok(
+      listDirNames(targetDir, 'command').some((name) => name.startsWith('gsd-') && name.endsWith('.md')),
+      `${runtime} should install flattened command markdown files`
+    );
+  } else if (contract.surface === 'commands-gsd') {
+    assert.ok(
+      listDirNames(targetDir, path.join('commands', 'gsd')).length > 0,
+      `${runtime} should install commands/gsd entries`
+    );
+  } else if (contract.surface === 'clinerules') {
+    assert.match(
+      fs.readFileSync(path.join(targetDir, '.clinerules'), 'utf8'),
+      /GSD workflows live in `get-shit-done\/workflows\/`/,
+      'Cline should install root .clinerules guidance'
+    );
+  }
+
+  assert.ok(
+    listDirNames(targetDir, 'agents').some((name) => name.startsWith('gsd-')),
+    `${runtime} full install should install agents`
+  );
+
+  assert.equal(
+    fs.existsSync(path.join(targetDir, 'settings.json')),
+    contract.settings,
+    `${runtime} settings.json presence should match the runtime contract`
+  );
+  assert.equal(
+    fs.existsSync(path.join(targetDir, 'package.json')),
+    contract.packageJson,
+    `${runtime} package.json presence should match the runtime contract`
+  );
+
+  if (contract.codexConfig) {
+    assert.match(
+      fs.readFileSync(path.join(targetDir, 'config.toml'), 'utf8'),
+      /GSD Agent Configuration/,
+      'Codex should install config.toml with the GSD marker'
+    );
+  }
+
+  if (contract.copilotInstructions) {
+    assert.match(
+      fs.readFileSync(path.join(targetDir, 'copilot-instructions.md'), 'utf8'),
+      /GSD Configuration/,
+      'Copilot should install managed copilot instructions'
+    );
+  }
 }
 
 describe('installer migration install integration', { concurrency: false }, () => {
@@ -272,6 +399,33 @@ describe('installer migration install integration', { concurrency: false }, () =
   });
 
   for (const runtime of SUPPORTED_RUNTIMES) {
+    test(`runs a full end-to-end install for ${runtime}`, () => {
+      const targetDir = path.join(tmpRoot, `.${runtime}-full-install`);
+      fs.mkdirSync(targetDir, { recursive: true });
+      writeFile(targetDir, 'hooks/statusline.js', 'legacy managed hook\n');
+      writeManifest(targetDir, {
+        'hooks/statusline.js': sha256('legacy managed hook\n'),
+      });
+
+      const result = runInstallerCli(runtime, targetDir, { minimal: false });
+
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      const output = stripAnsi(`${result.stdout}\n${result.stderr}`);
+      assert.match(output, /Installing for /);
+      assert.match(output, /Installer migrations/);
+      assert.match(output, /removed\s+hooks\/statusline\.js/);
+      assert.match(output, /Installed get-shit-done/);
+      assert.match(output, /Done!/);
+      assert.equal(fs.existsSync(path.join(targetDir, 'hooks/statusline.js')), false);
+
+      const installState = JSON.parse(fs.readFileSync(path.join(targetDir, 'gsd-install-state.json'), 'utf8'));
+      assert.ok(
+        installState.appliedMigrations.some((entry) => entry.id === '2026-05-11-legacy-orphan-files'),
+        `${runtime} should track the applied cleanup migration in install state`
+      );
+      assertFreshInstallContract(runtime, targetDir);
+    });
+
     test(`runs managed cleanup migrations for ${runtime}`, () => {
       const targetDir = path.join(tmpRoot, `.${runtime}-managed-cleanup`);
       fs.mkdirSync(targetDir, { recursive: true });

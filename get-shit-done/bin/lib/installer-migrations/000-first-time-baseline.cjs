@@ -151,6 +151,21 @@ module.exports = {
 
     const actions = [];
     for (const relPath of scanBaselineFiles(configDir, runtime)) {
+      // docs/installer-migrations.md#baseline-preserve-user keeps user-owned
+      // artifacts out of destructive migration flow; classify later only when
+      // ownership is not already known.
+      if (isUserOwnedBaselinePath(relPath)) {
+        actions.push({
+          type: 'baseline-preserve-user',
+          relPath,
+          reason: 'known user-owned artifact preserved by first-time migration baseline',
+          classification: 'user-owned',
+          originalHash: null,
+          currentHash: null,
+        });
+        continue;
+      }
+
       const artifact = classifyArtifact(relPath);
       if (artifact.classification === 'managed-pristine' || artifact.classification === 'managed-modified') {
         actions.push({
@@ -169,18 +184,6 @@ module.exports = {
           reason: 'known installer-generated agent included in first-time migration baseline',
           classification: artifact.classification,
           originalHash: artifact.originalHash,
-          currentHash,
-        });
-        continue;
-      }
-
-      if (isUserOwnedBaselinePath(relPath)) {
-        actions.push({
-          type: 'baseline-preserve-user',
-          relPath,
-          reason: 'known user-owned artifact preserved by first-time migration baseline',
-          classification: 'user-owned',
-          originalHash: null,
           currentHash,
         });
         continue;

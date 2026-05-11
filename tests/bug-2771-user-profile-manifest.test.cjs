@@ -217,3 +217,43 @@ describe('#2771: USER_OWNED_ARTIFACTS is a single source of truth', () => {
     );
   });
 });
+
+describe('manifest path safety', () => {
+  let tmpDir;
+
+  beforeEach(() => { tmpDir = createTempDir('gsd-manifest-path-safety-'); });
+  afterEach(() => { cleanup(tmpDir); });
+
+  test('saveLocalPatches ignores manifest entries that escape the install root', () => {
+    const origMode = process.env.GSD_TEST_MODE;
+    process.env.GSD_TEST_MODE = '1';
+    let mod;
+    try {
+      delete require.cache[require.resolve(INSTALL_SCRIPT)];
+      mod = require(INSTALL_SCRIPT);
+    } finally {
+      if (origMode === undefined) delete process.env.GSD_TEST_MODE;
+      else process.env.GSD_TEST_MODE = origMode;
+    }
+
+    const outside = path.join(tmpDir, '..', 'outside-managed-file.txt');
+    fs.writeFileSync(outside, 'outside user data\n', 'utf8');
+    fs.writeFileSync(
+      path.join(tmpDir, MANIFEST_NAME),
+      JSON.stringify({
+        version: 'legacy',
+        timestamp: '2026-05-11T00:00:00.000Z',
+        files: {
+          '../outside-managed-file.txt': 'deadbeef',
+        },
+      }, null, 2),
+      'utf8'
+    );
+
+    const modified = mod.saveLocalPatches(tmpDir);
+
+    assert.deepEqual(modified, []);
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'outside user data\n');
+    assert.equal(fs.existsSync(path.join(tmpDir, PATCHES_DIR_NAME, '..', 'outside-managed-file.txt')), false);
+  });
+});

@@ -703,6 +703,64 @@ test('reports lock release failures after migration work completes', (t) => {
   );
 });
 
+test('rollback handle restores files and install state after a successful apply', () => {
+  const configDir = createTempInstall();
+  try {
+    writeFile(configDir, 'hooks/old-hook.js', 'managed hook\n');
+    writeManifest(configDir, {
+      'hooks/old-hook.js': sha256('managed hook\n'),
+    });
+    writeInstallState(configDir, {
+      schemaVersion: 1,
+      appliedMigrations: [
+        {
+          id: 'already-applied',
+          appliedAt: '2026-05-10T00:00:00.000Z',
+          journal: 'gsd-migration-journal/prior.json',
+        },
+      ],
+    });
+
+    const plan = planInstallerMigrations({
+      configDir,
+      migrations: [
+        migrationRecord({
+          id: '2026-05-11-remove-old-hook',
+          title: 'Remove retired hook',
+          description: 'Remove retired hook',
+          introducedIn: '1.50.0',
+          scopes: ['global'],
+          destructive: true,
+          plan: () => [
+            {
+              type: 'remove-managed',
+              relPath: 'hooks/old-hook.js',
+              reason: 'retired hook',
+              ownershipEvidence: 'test fixture manifest-managed hook',
+            },
+          ],
+        }),
+      ],
+      scope: 'global',
+      now: () => '2026-05-11T00:00:00.000Z',
+    });
+
+    const result = applyInstallerMigrationPlan({
+      configDir,
+      plan,
+      now: () => '2026-05-11T00:00:01.000Z',
+    });
+
+    result.rollback();
+
+    assert.equal(fs.readFileSync(path.join(configDir, 'hooks/old-hook.js'), 'utf8'), 'managed hook\n');
+    assert.deepEqual(readInstallState(configDir).appliedMigrations.map((entry) => entry.id), ['already-applied']);
+    assert.equal(fs.existsSync(path.join(configDir, result.journalRelPath)), false);
+  } finally {
+    cleanup(configDir);
+  }
+});
+
 test('rolls back touched files and leaves state unchanged when apply fails', () => {
   const configDir = createTempInstall();
   try {
@@ -971,6 +1029,36 @@ test('skips migration records already present in install state', () => {
   }
 });
 
+test('marks zero-action pending migrations as applied', () => {
+  const configDir = createTempInstall();
+  try {
+    writeManifest(configDir, {});
+
+    const result = runInstallerMigrations({
+      configDir,
+      migrations: [
+        migrationRecord({
+          id: '2026-05-11-noop-cleanup',
+          title: 'No-op cleanup',
+          description: 'No-op cleanup',
+          destructive: false,
+          plan: () => [],
+        }),
+      ],
+      scope: 'global',
+      now: () => '2026-05-11T00:00:06.000Z',
+    });
+
+    assert.deepEqual(result.appliedMigrationIds, ['2026-05-11-noop-cleanup']);
+    assert.equal(result.journalRelPath, null);
+    assert.deepEqual(readInstallState(configDir).appliedMigrations.map((entry) => entry.id), [
+      '2026-05-11-noop-cleanup',
+    ]);
+  } finally {
+    cleanup(configDir);
+  }
+});
+
 test('refuses to plan an already-applied migration whose checksum changed', () => {
   const configDir = createTempInstall();
   try {
@@ -1099,6 +1187,40 @@ test('rejects migration actions that escape the install root', () => {
       }),
       /relPath must stay inside configDir/
     );
+  } finally {
+    cleanup(configDir);
+  }
+});
+
+test('rejects migration actions that normalize to the install root', () => {
+  const configDir = createTempInstall();
+  try {
+    writeManifest(configDir, {});
+
+    for (const relPath of ['.', 'hooks/..']) {
+      assert.throws(
+        () => planInstallerMigrations({
+          configDir,
+          migrations: [
+            migrationRecord({
+              id: `2026-05-11-bad-path-${relPath.replace(/[^a-z0-9]/gi, '-')}`,
+              title: 'Bad path',
+              description: 'Bad path',
+              plan: () => [
+                {
+                  type: 'remove-managed',
+                  relPath,
+                  reason: 'bad path',
+                  ownershipEvidence: 'test fixture manifest-managed hook',
+                },
+              ],
+            }),
+          ],
+          scope: 'global',
+        }),
+        /relPath must stay inside configDir/
+      );
+    }
   } finally {
     cleanup(configDir);
   }

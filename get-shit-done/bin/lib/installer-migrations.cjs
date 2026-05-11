@@ -94,10 +94,14 @@ function normalizeRelPath(relPath) {
     throw new Error('migration action relPath must be a non-empty string');
   }
   const normalized = relPath.replace(/\\/g, '/');
-  if (normalized.startsWith('/') || normalized.includes('../') || normalized === '..') {
+  if (path.isAbsolute(normalized) || path.win32.isAbsolute(normalized)) {
     throw new Error(`migration action relPath must stay inside configDir: ${relPath}`);
   }
-  return normalized;
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+    throw new Error(`migration action relPath must stay inside configDir: ${relPath}`);
+  }
+  return segments.join('/');
 }
 
 function classifyArtifact(configDir, relPath, manifest) {
@@ -183,13 +187,10 @@ function discoverInstallerMigrations({ migrationsDir }) {
     .sort()
     .flatMap((fileName) => {
       const source = path.join(migrationsDir, fileName);
-      const checksum = `sha256:${sha256File(source)}`;
       delete require.cache[require.resolve(source)];
       const exported = require(source);
       const records = Array.isArray(exported) ? exported : [exported];
-      return records.map((record) =>
-        validateInstallerMigrationRecord({ ...record, checksum: record.checksum || checksum }, source)
-      );
+      return records.map((record) => validateInstallerMigrationRecord(record, source));
     });
 }
 
@@ -386,6 +387,7 @@ function planInstallerMigrations({
     manifest,
     state,
     pendingMigrationIds: pending.map((migration) => migration.id),
+    pendingMigrations: pending,
     actions,
     blocked,
   };
@@ -478,6 +480,9 @@ function applyInstallerMigrationPlan({ configDir, plan, now = () => new Date().t
     : null;
 
   try {
+    fs.mkdirSync(path.dirname(journalPath), { recursive: true });
+    fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2) + '\n', 'utf8');
+
     for (const action of plan.actions) {
       if (
         action.type !== 'remove-managed' &&
@@ -537,7 +542,6 @@ function applyInstallerMigrationPlan({ configDir, plan, now = () => new Date().t
       fs.rmSync(fullPath, { force: true });
     }
 
-    fs.mkdirSync(path.dirname(journalPath), { recursive: true });
     fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2) + '\n', 'utf8');
 
     const state = readInstallState(configDir);
@@ -596,6 +600,38 @@ function applyInstallerMigrationPlan({ configDir, plan, now = () => new Date().t
   }
 }
 
+function markPendingMigrationsApplied({ configDir, plan, now = () => new Date().toISOString() }) {
+  if (!plan || !Array.isArray(plan.pendingMigrationIds) || plan.pendingMigrationIds.length === 0) {
+    return [];
+  }
+  const appliedAt = now();
+  const state = readInstallState(configDir);
+  const applied = appliedMigrationIds(state);
+  const checksumsByMigrationId = new Map();
+  for (const migration of plan.pendingMigrations || []) {
+    checksumsByMigrationId.set(migration.id, migrationChecksum(migration));
+  }
+  const nextApplied = [...state.appliedMigrations];
+  const newlyApplied = [];
+  for (const id of plan.pendingMigrationIds) {
+    if (applied.has(id)) continue;
+    nextApplied.push({
+      id,
+      appliedAt,
+      journal: null,
+      checksum: checksumsByMigrationId.get(id) || null,
+    });
+    newlyApplied.push(id);
+  }
+  if (newlyApplied.length > 0) {
+    writeInstallState(configDir, {
+      schemaVersion: 1,
+      appliedMigrations: nextApplied,
+    });
+  }
+  return newlyApplied;
+}
+
 function runInstallerMigrations({
   configDir,
   runtime = null,
@@ -612,9 +648,10 @@ function runInstallerMigrations({
   try {
     const plan = planInstallerMigrations({ configDir, runtime, scope, migrations, baselineScan, now });
     if (plan.actions.length === 0) {
+      const appliedMigrationIds = markPendingMigrationsApplied({ configDir, plan, now });
       completed = true;
       return {
-        appliedMigrationIds: [],
+        appliedMigrationIds,
         journalRelPath: null,
         plan,
       };

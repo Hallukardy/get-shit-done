@@ -7134,7 +7134,33 @@ function resolveInstallRelativePath(baseDir, relPath) {
   if (fullPath !== root && !fullPath.startsWith(root + path.sep)) {
     return null;
   }
+  if (hasExistingSymlinkBetween(root, fullPath)) {
+    return null;
+  }
   return { relPath: normalized, fullPath };
+}
+
+function hasExistingSymlinkBetween(root, fullPath) {
+  const resolvedRoot = path.resolve(root);
+  const resolvedFullPath = path.resolve(fullPath);
+  if (resolvedFullPath !== resolvedRoot && !resolvedFullPath.startsWith(resolvedRoot + path.sep)) {
+    return true;
+  }
+
+  let cursor = resolvedRoot;
+  if (fs.existsSync(cursor) && fs.lstatSync(cursor).isSymbolicLink()) {
+    return true;
+  }
+
+  const relative = path.relative(resolvedRoot, resolvedFullPath);
+  for (const segment of relative.split(path.sep)) {
+    if (!segment) continue;
+    cursor = path.join(cursor, segment);
+    if (!fs.existsSync(cursor)) return false;
+    if (fs.lstatSync(cursor).isSymbolicLink()) return true;
+  }
+
+  return false;
 }
 
 /**
@@ -7554,6 +7580,13 @@ function install(isGlobal, runtime = 'claude', options = {}) {
 
   // Track installation failures
   const failures = [];
+  let installerMigrationResult = null;
+  const rollbackInstallerMigrations = () => {
+    if (!installerMigrationResult || typeof installerMigrationResult.rollback !== 'function') return;
+    const rollback = installerMigrationResult.rollback;
+    installerMigrationResult = null;
+    rollback();
+  };
 
   // Save any locally modified GSD files before they get wiped.
   // The pristine context lets saveLocalPatches populate gsd-pristine/ via
@@ -7565,6 +7598,9 @@ function install(isGlobal, runtime = 'claude', options = {}) {
     pathPrefix,
     isGlobal,
   });
+
+  // Run manifest-backed cleanup migrations before package materialization.
+  installerMigrationResult = runInstallerMigrations({ configDir: targetDir });
 
   // #3245 — Codex idempotent rollback. Capture pre-install state of ALL
   // directories and files GSD will mutate so that any post-install validation
@@ -7596,13 +7632,6 @@ function install(isGlobal, runtime = 'claude', options = {}) {
   // Map<filename, Buffer> — content snapshot of each pre-existing gsd-* agent file.
   const codexPreInstallAgentContents = new Map();
   let codexPreInstallVersionBytes = null;
-  let installerMigrationResult = null;
-  const rollbackInstallerMigrations = () => {
-    if (!installerMigrationResult || typeof installerMigrationResult.rollback !== 'function') return;
-    const rollback = installerMigrationResult.rollback;
-    installerMigrationResult = null;
-    rollback();
-  };
   if (isCodex && !isMinimalMode(installMode)) {
     const _preSkillsDir = path.join(targetDir, 'skills');
     if (fs.existsSync(_preSkillsDir)) {
@@ -8387,6 +8416,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
     // #3245 CR finding 2 — any throw in the pre-config install operations (skills copy,
     // agents copy, VERSION write, manifest write, etc.) triggers the Codex pre-config
     // rollback so the caller is never left in a partially-installed state.
+    rollbackInstallerMigrations();
     if (_codexPreConfigRollback) {
       _codexPreConfigRollback();
     }
@@ -9897,6 +9927,12 @@ function installSdkIfNeeded(opts) {
   if (!fs.existsSync(sdkCliPath)) {
     const ir = buildSdkFailFastReport(sdkDir, sdkCliPath);
     renderSdkFailFastReport(ir);
+    if (opts.throwOnFailure) {
+      const error = new Error(`GSD SDK prebuilt artifact missing: ${sdkCliPath}`);
+      error.code = 'GSD_SDK_MISSING_DIST';
+      error.exitCode = 1;
+      throw error;
+    }
     process.exit(1);
   }
 
@@ -10585,14 +10621,6 @@ function installAllRuntimes(runtimes, isGlobal, isInteractive) {
     migrationsDir: path.join(_gsdLibDir, 'installer-migrations'),
   });
 
-  for (const runtime of runtimes) {
-    const result = install(isGlobal, runtime, { installerMigrations });
-    results.push(result);
-  }
-
-  const statuslineRuntimes = ['claude', 'gemini'];
-  const primaryStatuslineResult = results.find(r => statuslineRuntimes.includes(r.runtime));
-
   const rollbackFinalizedInstallerMigrations = (error) => {
     const rollbackFailures = [];
     for (const result of [...results].reverse()) {
@@ -10611,6 +10639,19 @@ function installAllRuntimes(runtimes, isGlobal, isInteractive) {
     }
   };
 
+  try {
+    for (const runtime of runtimes) {
+      const result = install(isGlobal, runtime, { installerMigrations });
+      results.push(result);
+    }
+  } catch (error) {
+    rollbackFinalizedInstallerMigrations(error);
+    throw error;
+  }
+
+  const statuslineRuntimes = ['claude', 'gemini'];
+  const primaryStatuslineResult = results.find(r => statuslineRuntimes.includes(r.runtime));
+
   const finalize = (shouldInstallStatusline, shouldInstallBanner) => {
     try {
       // Verify sdk/dist/cli.js is present and executable. The dist is shipped
@@ -10618,7 +10659,7 @@ function installAllRuntimes(runtimes, isGlobal, isInteractive) {
       // the parent package's bin/gsd-sdk.js shim, so no sub-install is needed.
       // Skip with --no-sdk. Skip with isLocal (#2678 — local installs don't own global npm).
       // #3033: pass forceSdk so --sdk overrides the local-install skip.
-      installSdkIfNeeded({ isLocal: !isGlobal, forceSdk: hasSdk });
+      installSdkIfNeeded({ isLocal: !isGlobal, forceSdk: hasSdk, throwOnFailure: true });
 
       const printSummaries = () => {
         for (const result of results) {

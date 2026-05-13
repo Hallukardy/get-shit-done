@@ -5,7 +5,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execGit } = require('./shell-command-projection.cjs');
+const { execGit, platformWriteSync, platformReadSync, platformEnsureDir } = require('./shell-command-projection.cjs');
 const { MODEL_PROFILES, AGENT_TO_PHASE_TYPE, VALID_PHASE_TYPES, AGENT_DEFAULT_TIERS, VALID_AGENT_TIERS, nextTier } = require('./model-profiles.cjs');
 const { MODEL_ALIAS_MAP, RUNTIME_PROFILE_MAP, KNOWN_RUNTIMES, RUNTIMES_WITH_REASONING_EFFORT } = require('./model-catalog.cjs');
 const {
@@ -107,7 +107,9 @@ function findProjectRoot(startDir) {
     if (fs.existsSync(parentPlanning) && fs.statSync(parentPlanning).isDirectory()) {
       const configPath = path.join(parentPlanning, 'config.json');
       try {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const raw = platformReadSync(configPath);
+        if (raw === null) throw new Error('missing');
+        const config = JSON.parse(raw);
         const subRepos = config.sub_repos || config.planning?.sub_repos || [];
 
         // Check explicit sub_repos list
@@ -155,7 +157,7 @@ function findProjectRoot(startDir) {
 const GSD_TEMP_DIR = path.join(require('os').tmpdir(), 'gsd');
 
 function ensureGsdTempDir() {
-  fs.mkdirSync(GSD_TEMP_DIR, { recursive: true });
+  platformEnsureDir(GSD_TEMP_DIR);
 }
 
 function reapStaleTempFiles(prefix = 'gsd-', { maxAgeMs = 5 * 60 * 1000, dirsOnly = false } = {}) {
@@ -196,7 +198,7 @@ function output(result, raw, rawValue) {
       reapStaleTempFiles();
       ensureGsdTempDir();
       const tmpPath = path.join(GSD_TEMP_DIR, `gsd-${Date.now()}.json`);
-      fs.writeFileSync(tmpPath, json, 'utf-8');
+      platformWriteSync(tmpPath, json);
       data = '@file:' + tmpPath;
     } else {
       data = json;
@@ -351,7 +353,8 @@ function loadConfig(cwd, options = {}) {
   if (ws) {
     const rootConfigPath = path.join(planningRoot(cwd), 'config.json');
     try {
-      const raw = fs.readFileSync(rootConfigPath, 'utf-8');
+      const raw = platformReadSync(rootConfigPath);
+      if (raw === null) throw new Error('missing');
       rootParsed = JSON.parse(raw);
     } catch {
       // Root config missing or unparseable — workstream config stands alone
@@ -362,7 +365,8 @@ function loadConfig(cwd, options = {}) {
   const defaults = CONFIG_DEFAULTS;
 
   try {
-    const raw = fs.readFileSync(configPath, 'utf-8');
+    const raw = platformReadSync(configPath);
+    if (raw === null) throw new Error('missing');
     // `fileData` is the parsed content of the config.json file on disk — used
     // for migrations and writes so we never persist merged values back to disk.
     const fileData = JSON.parse(raw);
@@ -372,7 +376,7 @@ function loadConfig(cwd, options = {}) {
       const depthToGranularity = { quick: 'coarse', standard: 'standard', comprehensive: 'fine' };
       fileData.granularity = depthToGranularity[fileData.depth] || fileData.depth;
       delete fileData.depth;
-      try { fs.writeFileSync(configPath, JSON.stringify(fileData, null, 2), 'utf-8'); } catch { /* intentionally empty */ }
+      try { platformWriteSync(configPath, JSON.stringify(fileData, null, 2)); } catch { /* intentionally empty */ }
     }
 
     // Auto-detect and sync sub_repos: scan for child directories with .git
@@ -420,7 +424,7 @@ function loadConfig(cwd, options = {}) {
     // Persist sub_repos changes (migration or sync) — write only the on-disk
     // file contents, never the merged result, to avoid polluting workstream configs.
     if (configDirty) {
-      try { fs.writeFileSync(configPath, JSON.stringify(fileData, null, 2), 'utf-8'); } catch {}
+      try { platformWriteSync(configPath, JSON.stringify(fileData, null, 2)); } catch {}
     }
 
     // Now apply root→workstream inheritance. `parsed` is the effective config
@@ -556,7 +560,8 @@ function loadConfig(cwd, options = {}) {
     try {
       const home = process.env.GSD_HOME || os.homedir();
       const globalDefaultsPath = path.join(home, '.gsd', 'defaults.json');
-      const raw = fs.readFileSync(globalDefaultsPath, 'utf-8');
+      const raw = platformReadSync(globalDefaultsPath);
+      if (raw === null) throw new Error('missing');
       const globalDefaults = JSON.parse(raw);
       return {
         ...defaults,
@@ -1038,8 +1043,8 @@ function extractCurrentMilestone(content, cwd) {
   let version = null;
   try {
     const statePath = path.join(planningDir(cwd), 'STATE.md');
-    if (fs.existsSync(statePath)) {
-      const stateRaw = fs.readFileSync(statePath, 'utf-8');
+    const stateRaw = platformReadSync(statePath);
+    if (stateRaw !== null) {
       const milestoneMatch = stateRaw.match(/^milestone:\s*(.+)/m);
       if (milestoneMatch) {
         version = milestoneMatch[1].trim();
@@ -1145,7 +1150,9 @@ function getRoadmapPhaseInternal(cwd, phaseNum) {
   if (!fs.existsSync(roadmapPath)) return null;
 
   try {
-    const content = extractCurrentMilestone(fs.readFileSync(roadmapPath, 'utf-8'), cwd);
+    const roadmapRaw = platformReadSync(roadmapPath);
+    if (roadmapRaw === null) throw new Error('missing');
+    const content = extractCurrentMilestone(roadmapRaw, cwd);
     // Strip leading zeros from purely numeric phase numbers so "03" matches "Phase 3:"
     // in canonical ROADMAP headings. Non-numeric IDs (e.g. "PROJ-42") are kept as-is.
     const normalized = /^\d+$/.test(String(phaseNum))
@@ -1655,7 +1662,8 @@ function generateSlugInternal(text) {
 
 function getMilestoneInfo(cwd) {
   try {
-    const roadmap = fs.readFileSync(path.join(planningDir(cwd), 'ROADMAP.md'), 'utf-8');
+    const roadmap = platformReadSync(path.join(planningDir(cwd), 'ROADMAP.md'));
+    if (roadmap === null) throw new Error('missing');
 
     // 0. Prefer STATE.md milestone: frontmatter as the authoritative source.
     // This prevents falling through to a regex that may match an old heading
@@ -1665,8 +1673,8 @@ function getMilestoneInfo(cwd) {
     if (cwd) {
       try {
         const statePath = path.join(planningDir(cwd), 'STATE.md');
-        if (fs.existsSync(statePath)) {
-          const stateRaw = fs.readFileSync(statePath, 'utf-8');
+        const stateRaw = platformReadSync(statePath);
+        if (stateRaw !== null) {
           const m = stateRaw.match(/^milestone:\s*(.+)/m);
           if (m) stateVersion = m[1].trim();
         }
@@ -1747,7 +1755,8 @@ function getMilestonePhaseFilter(cwd, versionOverride) {
   let missingExplicitVersion = false;
   try {
     const roadmapPath = path.join(planningDir(cwd), 'ROADMAP.md');
-    const roadmapContent = fs.readFileSync(roadmapPath, 'utf-8');
+    const roadmapContent = platformReadSync(roadmapPath);
+    if (roadmapContent === null) throw new Error('missing');
     let roadmap = extractCurrentMilestone(roadmapContent, cwd);
 
     if (versionOverride) {

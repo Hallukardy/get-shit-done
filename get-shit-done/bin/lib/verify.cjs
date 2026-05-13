@@ -5,8 +5,8 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { safeReadFile, loadConfig, normalizePhaseName, escapeRegex, findPhaseInternal, getMilestoneInfo, stripShippedMilestones, extractCurrentMilestone, output, error, checkAgentsInstalled, CONFIG_DEFAULTS, inspectWorktreeHealth } = require('./core.cjs');
-const { execGit } = require('./shell-command-projection.cjs');
+const { loadConfig, normalizePhaseName, escapeRegex, findPhaseInternal, getMilestoneInfo, stripShippedMilestones, extractCurrentMilestone, output, error, checkAgentsInstalled, CONFIG_DEFAULTS, inspectWorktreeHealth } = require('./core.cjs');
+const { execGit, platformReadSync: safeReadFile, platformWriteSync } = require('./shell-command-projection.cjs');
 const { planningDir } = require('./planning-workspace.cjs');
 const { extractFrontmatter, parseMustHavesBlock } = require('./frontmatter.cjs');
 const { writeStateMd } = require('./state.cjs');
@@ -1020,7 +1020,7 @@ function cmdValidateHealth(cwd, options, raw) {
               parallelization: CONFIG_DEFAULTS.parallelization,
               brave_search: CONFIG_DEFAULTS.brave_search,
             };
-            fs.writeFileSync(configPath, JSON.stringify(defaults, null, 2), 'utf-8');
+            platformWriteSync(configPath, JSON.stringify(defaults, null, 2));
             repairActions.push({ action: repair, success: true, path: 'config.json' });
             break;
           }
@@ -1058,7 +1058,7 @@ function cmdValidateHealth(cwd, options, raw) {
                 if (!configParsed.workflow) configParsed.workflow = {};
                 if (configParsed.workflow.nyquist_validation === undefined) {
                   configParsed.workflow.nyquist_validation = true;
-                  fs.writeFileSync(configPath, JSON.stringify(configParsed, null, 2), 'utf-8');
+                  platformWriteSync(configPath, JSON.stringify(configParsed, null, 2));
                 }
                 repairActions.push({ action: repair, success: true, path: 'config.json' });
               } catch (err) {
@@ -1075,7 +1075,7 @@ function cmdValidateHealth(cwd, options, raw) {
                 if (!configParsed.workflow) configParsed.workflow = {};
                 if (configParsed.workflow.ai_integration_phase === undefined) {
                   configParsed.workflow.ai_integration_phase = true;
-                  fs.writeFileSync(configPath, JSON.stringify(configParsed, null, 2), 'utf-8');
+                  platformWriteSync(configPath, JSON.stringify(configParsed, null, 2));
                 }
                 repairActions.push({ action: repair, success: true, path: 'config.json' });
               } catch (err) {
@@ -1091,7 +1091,7 @@ function cmdValidateHealth(cwd, options, raw) {
             for (const ver of missingFromRegistry) {
               try {
                 const snapshotPath = path.join(milestonesArchiveDir, `${ver}-ROADMAP.md`);
-                const snapshot = fs.existsSync(snapshotPath) ? fs.readFileSync(snapshotPath, 'utf-8') : null;
+                const snapshot = safeReadFile(snapshotPath);
                 // Build minimal entry from snapshot title or version
                 const titleMatch = snapshot && snapshot.match(/^#\s+(.+)$/m);
                 const milestoneName = titleMatch ? titleMatch[1].replace(/^Milestone\s+/i, '').replace(/^v[\d.]+\s*/, '').trim() : ver;
@@ -1100,15 +1100,15 @@ function cmdValidateHealth(cwd, options, raw) {
                   ? fs.readFileSync(milestonesPath, 'utf-8')
                   : '';
                 if (!milestonesContent.trim()) {
-                  fs.writeFileSync(milestonesPath, `# Milestones\n\n${entry}`, 'utf-8');
+                  platformWriteSync(milestonesPath, `# Milestones\n\n${entry}`);
                 } else {
                   const headerMatch = milestonesContent.match(/^(#{1,3}\s+[^\n]*\n\n?)/);
                   if (headerMatch) {
                     const header = headerMatch[1];
                     const rest = milestonesContent.slice(header.length);
-                    fs.writeFileSync(milestonesPath, header + entry + rest, 'utf-8');
+                    platformWriteSync(milestonesPath, header + entry + rest);
                   } else {
-                    fs.writeFileSync(milestonesPath, entry + milestonesContent, 'utf-8');
+                    platformWriteSync(milestonesPath, entry + milestonesContent);
                   }
                 }
                 backfilled++;
